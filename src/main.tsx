@@ -2,6 +2,7 @@ import { Component, lazy, StrictMode } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import { isSupabaseConfigured } from './lib/config'
 
 const App = lazy(() => import('./App.tsx'))
 
@@ -44,10 +45,6 @@ function StartupErrorScreen({ message }: { message: string }) {
   )
 }
 
-const hasSupabaseConfig = Boolean(
-  import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY,
-)
-
 const root = document.getElementById('root')
 
 if (!root) {
@@ -57,7 +54,7 @@ if (!root) {
 createRoot(root).render(
   <StrictMode>
     <AppErrorBoundary>
-      {hasSupabaseConfig ? (
+      {isSupabaseConfigured ? (
         <App />
       ) : (
         <StartupErrorScreen message="Supabase configuration is missing." />
