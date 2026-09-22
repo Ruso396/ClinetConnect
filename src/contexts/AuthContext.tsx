@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     if (!user) return
-    const p = await ensureProfile(user.id, user.email ?? undefined)
+    const p = await ensureProfile()
     setProfile(p)
   }, [user])
 
@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(data.session)
         setUser(data.session?.user ?? null)
         if (data.session?.user) {
-          ensureProfile(data.session.user.id, data.session.user.email ?? undefined)
+          ensureProfile()
             .then((p) => {
               if (active) setProfile(p)
             })
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession)
       setUser(newSession?.user ?? null)
       if (newSession?.user) {
-        ensureProfile(newSession.user.id, newSession.user.email ?? undefined)
+        ensureProfile()
           .then((p) => {
             if (active) setProfile(p)
           })
@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setSession(data.session)
     setUser(data.session.user)
-    const p = await ensureProfile(data.session.user.id, data.session.user.email ?? undefined)
+    const p = await ensureProfile()
     setProfile(p)
   }, [])
 

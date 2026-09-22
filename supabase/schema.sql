@@ -164,38 +164,59 @@ CREATE POLICY "profiles_update_own"
 
 -- --- CUSTOMERS ---
 DROP POLICY IF EXISTS "customers_select_all" ON public.customers;
-CREATE POLICY "customers_select_all"
+DROP POLICY IF EXISTS "customers_select_own" ON public.customers;
+CREATE POLICY "customers_select_own"
   ON public.customers FOR SELECT
-  USING (auth.role() = 'authenticated');
+  USING (auth.uid() = created_by);
 
 DROP POLICY IF EXISTS "customers_insert_all" ON public.customers;
-CREATE POLICY "customers_insert_all"
+DROP POLICY IF EXISTS "customers_insert_own" ON public.customers;
+CREATE POLICY "customers_insert_own"
   ON public.customers FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
+  WITH CHECK (auth.uid() = created_by);
 
 DROP POLICY IF EXISTS "customers_update_all" ON public.customers;
-CREATE POLICY "customers_update_all"
+DROP POLICY IF EXISTS "customers_update_own" ON public.customers;
+CREATE POLICY "customers_update_own"
   ON public.customers FOR UPDATE
-  USING (auth.role() = 'authenticated')
-  WITH CHECK (auth.role() = 'authenticated');
+  USING (auth.uid() = created_by)
+  WITH CHECK (auth.uid() = created_by);
 
 DROP POLICY IF EXISTS "customers_delete_all" ON public.customers;
-CREATE POLICY "customers_delete_all"
+DROP POLICY IF EXISTS "customers_delete_own" ON public.customers;
+CREATE POLICY "customers_delete_own"
   ON public.customers FOR DELETE
-  USING (auth.role() = 'authenticated');
+  USING (auth.uid() = created_by);
 
 -- --- CUSTOMER ACTIVITIES ---
 DROP POLICY IF EXISTS "activities_select_all" ON public.customer_activities;
-CREATE POLICY "activities_select_all"
+DROP POLICY IF EXISTS "activities_select_own" ON public.customer_activities;
+CREATE POLICY "activities_select_own"
   ON public.customer_activities FOR SELECT
-  USING (auth.role() = 'authenticated');
+  USING (auth.uid() = user_id AND EXISTS (
+    SELECT 1 FROM public.customers
+    WHERE customers.id = customer_activities.customer_id
+      AND customers.created_by = auth.uid()
+  ));
 
 DROP POLICY IF EXISTS "activities_insert_all" ON public.customer_activities;
-CREATE POLICY "activities_insert_all"
+DROP POLICY IF EXISTS "activities_insert_own" ON public.customer_activities;
+CREATE POLICY "activities_insert_own"
   ON public.customer_activities FOR INSERT
-  WITH CHECK (auth.role() = 'authenticated');
+  WITH CHECK (
+    auth.uid() = user_id AND EXISTS (
+      SELECT 1 FROM public.customers
+      WHERE customers.id = customer_activities.customer_id
+        AND customers.created_by = auth.uid()
+    )
+  );
 
 DROP POLICY IF EXISTS "activities_delete_all" ON public.customer_activities;
-CREATE POLICY "activities_delete_all"
+DROP POLICY IF EXISTS "activities_delete_own" ON public.customer_activities;
+CREATE POLICY "activities_delete_own"
   ON public.customer_activities FOR DELETE
-  USING (auth.role() = 'authenticated');
+  USING (auth.uid() = user_id AND EXISTS (
+    SELECT 1 FROM public.customers
+    WHERE customers.id = customer_activities.customer_id
+      AND customers.created_by = auth.uid()
+  ));

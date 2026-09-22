@@ -20,8 +20,17 @@ const DATE_ADDED_LIMITS: Record<string, number> = {
   month: 30,
 }
 
-function buildQuery(client: SupabaseClient, filters: CustomerFilters) {
-  let query = client.from('customers').select('*', { count: 'exact' })
+async function getCurrentUserId(): Promise<string> {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
+  if (error || !user) throw new Error('You must be signed in.')
+  return user.id
+}
+
+function buildQuery(client: SupabaseClient, filters: CustomerFilters, userId: string) {
+  let query = client.from('customers').select('*', { count: 'exact' }).eq('created_by', userId)
 
   const term = filters.search?.trim()
   if (term) {
@@ -59,7 +68,9 @@ export async function fetchCustomers(
 ): Promise<{ data: Customer[]; count: number }> {
   const from = Math.max(0, range.from)
   const to = Math.max(from, range.to)
-  const { data, count, error } = await buildQuery(supabase, filters)
+  const userId = await getCurrentUserId()
+  const query = buildQuery(supabase, filters, userId)
+  const { data, count, error } = await query
     .order('created_at', { ascending: false })
     .range(from, to)
 
@@ -68,10 +79,12 @@ export async function fetchCustomers(
 }
 
 export async function getCustomerById(id: string): Promise<Customer> {
+  const userId = await getCurrentUserId()
   const { data, error } = await supabase
     .from('customers')
     .select('*')
     .eq('id', id)
+    .eq('created_by', userId)
     .maybeSingle()
 
   if (error) throw new Error('Could not load this customer. Please try again.')
@@ -82,11 +95,13 @@ export async function getCustomerById(id: string): Promise<Customer> {
 export async function hasCustomerWithPhone(phone: string, excludeId?: string): Promise<boolean> {
   const normalizedPhone = normalizePhone(phone)
   if (!normalizedPhone) return false
+  const userId = await getCurrentUserId()
 
   let query = supabase
     .from('customers')
     .select('id')
     .eq('normalized_phone', normalizedPhone)
+    .eq('created_by', userId)
     .limit(1)
 
   if (excludeId) query = query.neq('id', excludeId)
@@ -96,7 +111,8 @@ export async function hasCustomerWithPhone(phone: string, excludeId?: string): P
   return Boolean(data)
 }
 
-export async function createCustomer(input: CustomerInput, userId: string): Promise<Customer> {
+export async function createCustomer(input: CustomerInput): Promise<Customer> {
+  const userId = await getCurrentUserId()
   const normalizedPhone = normalizePhone(input.phone)
   const { data, error } = await supabase
     .from('customers')
@@ -135,6 +151,7 @@ export async function updateCustomer(
     status?: CustomerStatus
   },
 ): Promise<Customer> {
+  const userId = await getCurrentUserId()
   const normalizedPhone = input.phone === undefined ? undefined : normalizePhone(input.phone)
   const update = {
     ...(input.name !== undefined && { name: input.name.trim() }),
@@ -154,6 +171,7 @@ export async function updateCustomer(
     .from('customers')
     .update(update)
     .eq('id', id)
+    .eq('created_by', userId)
     .select()
     .single()
 
@@ -165,7 +183,8 @@ export async function updateCustomer(
 }
 
 export async function deleteCustomer(id: string): Promise<void> {
-  const { error } = await supabase.from('customers').delete().eq('id', id)
+  const userId = await getCurrentUserId()
+  const { error } = await supabase.from('customers').delete().eq('id', id).eq('created_by', userId)
   if (error) throw new Error('Could not delete this customer. Please try again.')
 }
 
@@ -175,29 +194,33 @@ export async function getCustomerCounts(): Promise<{
   followUps: number
   converted: number
 }> {
+  const userId = await getCurrentUserId()
   const count = async (query: any): Promise<number> => {
     const { count, error } = await query
     return error ? 0 : (count ?? 0)
   }
 
   const [total, newLeads, followUps, converted] = await Promise.all([
-    count(supabase.from('customers').select('id', { count: 'exact', head: true })),
+    count(supabase.from('customers').select('id', { count: 'exact', head: true }).eq('created_by', userId)),
     count(
       supabase
         .from('customers')
         .select('id', { count: 'exact', head: true })
+        .eq('created_by', userId)
         .eq('status', 'new_lead'),
     ),
     count(
       supabase
         .from('customers')
         .select('id', { count: 'exact', head: true })
+        .eq('created_by', userId)
         .eq('status', 'follow_up'),
     ),
     count(
       supabase
         .from('customers')
         .select('id', { count: 'exact', head: true })
+        .eq('created_by', userId)
         .eq('status', 'converted'),
     ),
   ])
@@ -206,9 +229,11 @@ export async function getCustomerCounts(): Promise<{
 }
 
 export async function getRecentCustomers(limit = 5): Promise<Customer[]> {
+  const userId = await getCurrentUserId()
   const { data, error } = await supabase
     .from('customers')
     .select('*')
+    .eq('created_by', userId)
     .order('created_at', { ascending: false })
     .limit(limit)
 
@@ -217,10 +242,12 @@ export async function getRecentCustomers(limit = 5): Promise<Customer[]> {
 }
 
 export async function getTodayFollowUps(): Promise<Customer[]> {
+  const userId = await getCurrentUserId()
   const today = todayISO()
   const { data, error } = await supabase
     .from('customers')
     .select('*')
+    .eq('created_by', userId)
     .eq('follow_up_date', today)
     .order('follow_up_time', { ascending: true, nullsFirst: false })
     .limit(20)
@@ -235,13 +262,14 @@ export async function getFollowUpSections(): Promise<{
   upcoming: Customer[]
   overdue: Customer[]
 }> {
+  const userId = await getCurrentUserId()
   const today = todayISO()
   const tomorrow = tomorrowISO()
   const end = new Date()
   end.setDate(end.getDate() + 30)
   const endISO = toISODate(end)
 
-  const base = () => supabase.from('customers').select('*')
+  const base = () => supabase.from('customers').select('*').eq('created_by', userId)
 
   const [todayRes, tomorrowRes, upcomingRes, overdueRes] = await Promise.all([
     base().eq('follow_up_date', today).order('follow_up_time', { ascending: true }),

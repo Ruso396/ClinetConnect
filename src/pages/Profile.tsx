@@ -37,7 +37,7 @@ export function Profile() {
     if (!user) return
     setSavingProfile(true)
     try {
-      await updateProfile(user.id, { full_name: fullName.trim() || 'User', phone: phone.trim() || null })
+      await updateProfile({ full_name: fullName.trim() || 'User', phone: phone.trim() || null })
       await refreshProfile()
       success('Profile updated.')
     } catch (e) {

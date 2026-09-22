@@ -17,9 +17,23 @@ export async function addActivity(
   activityType: ActivityType,
   description?: string,
 ): Promise<void> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+  if (userError || !user) throw new Error('You must be signed in.')
+
+  const { data: customer, error: customerError } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('id', customerId)
+    .eq('created_by', user.id)
+    .maybeSingle()
+  if (customerError || !customer) throw new Error('Customer not found.')
+
   const { error } = await supabase.from('customer_activities').insert({
     customer_id: customerId,
-    user_id: (await supabase.auth.getUser()).data.user?.id ?? null,
+    user_id: user.id,
     activity_type: activityType,
     description: description ?? null,
   })
@@ -27,10 +41,17 @@ export async function addActivity(
 }
 
 export async function listActivities(customerId: string): Promise<CustomerActivity[]> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+  if (userError || !user) throw new Error('You must be signed in.')
+
   const { data, error } = await supabase
     .from('customer_activities')
     .select('*')
     .eq('customer_id', customerId)
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(100)
 

@@ -18,7 +18,7 @@ export function AddCustomer() {
     if (!user) return
     setSaving(true)
     try {
-      const customer = await createCustomer(values, user.id)
+      const customer = await createCustomer(values)
       await addActivity(customer.id, 'created', 'Customer added.')
       success('Customer added successfully.')
       navigate(`/customers/${customer.id}`, { replace: true })
