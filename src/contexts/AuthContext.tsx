@@ -32,17 +32,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return
-      setSession(data.session)
-      setUser(data.session?.user ?? null)
-      if (data.session?.user) {
-        ensureProfile(data.session.user.id, data.session.user.email ?? undefined).then((p) => {
-          if (active) setProfile(p)
-        })
-      }
-      setLoading(false)
-    })
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!active) return
+        setSession(data.session)
+        setUser(data.session?.user ?? null)
+        if (data.session?.user) {
+          ensureProfile(data.session.user.id, data.session.user.email ?? undefined)
+            .then((p) => {
+              if (active) setProfile(p)
+            })
+            .catch((error) => console.error('Could not load profile', error))
+        }
+      })
+      .catch((error) => {
+        if (active) console.error('Could not initialize authentication', error)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
 
     const {
       data: { subscription },
@@ -50,9 +59,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession)
       setUser(newSession?.user ?? null)
       if (newSession?.user) {
-        ensureProfile(newSession.user.id, newSession.user.email ?? undefined).then((p) => {
-          if (active) setProfile(p)
-        })
+        ensureProfile(newSession.user.id, newSession.user.email ?? undefined)
+          .then((p) => {
+            if (active) setProfile(p)
+          })
+          .catch((error) => console.error('Could not load profile', error))
       } else {
         setProfile(null)
       }
